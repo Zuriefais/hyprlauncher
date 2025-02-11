@@ -57,34 +57,27 @@ impl Config {
 
     pub fn load() -> Self {
         let config_path = Self::ensure_config_dir();
-        let config_file = config_path.join("config.json");
+        let config_file = config_path.join("config.toml");
         let default_config = Config::default();
 
         if !config_file.exists() {
-            if let Ok(contents) = serde_json::to_string_pretty(&default_config) {
+            if let Ok(contents) = toml::to_string_pretty(&default_config) {
                 fs::write(&config_file, contents).unwrap_or_default();
             }
             return default_config;
         }
 
-        let existing_config: serde_json::Value = fs::read_to_string(&config_file)
-            .ok()
-            .and_then(|contents| serde_json::from_str(&contents).ok())
-            .unwrap_or_else(|| serde_json::json!({}));
+        // Read and parse existing config
+        let config_str = fs::read_to_string(&config_file).unwrap_or_default();
+        let config: Config = toml::from_str(&config_str).unwrap_or_else(|_| {
+            // If parsing fails, write default config and return it
+            if let Ok(contents) = toml::to_string_pretty(&default_config) {
+                fs::write(&config_file, contents).unwrap_or_default();
+            }
+            default_config
+        });
 
-        let merged_config = if let Ok(contents) = serde_json::to_string(&default_config) {
-            let default_json: serde_json::Value =
-                serde_json::from_str(&contents).unwrap_or_default();
-            merge_json(existing_config, default_json.clone(), &default_json)
-        } else {
-            existing_config
-        };
-
-        if let Ok(contents) = serde_json::to_string_pretty(&merged_config) {
-            fs::write(&config_file, contents).unwrap_or_default();
-        }
-
-        serde_json::from_value(merged_config).unwrap_or_default()
+        config
     }
 
     pub fn load_css() -> String {
@@ -97,30 +90,30 @@ impl Config {
 
 fn get_default_css(config: &Config) -> String {
     format!(
-        "window {{ 
+        "window {{
             background-color: #0f0f0f;
         }}
-        
-        list {{ 
+
+        list {{
             background: #0f0f0f;
         }}
-        
-        list row {{ 
+
+        list row {{
             padding: 4px;
             margin: 2px 6px;
             border-radius: 8px;
             background: #0f0f0f;
             transition: all 200ms ease;
         }}
-        
-        list row:selected {{ 
+
+        list row:selected {{
             background-color: {};
         }}
-        
+
         list row:hover:not(:selected) {{
             background-color: #181818;
         }}
-        
+
         entry {{
             margin: 12px;
             margin-bottom: 8px;
@@ -132,24 +125,24 @@ fn get_default_css(config: &Config) -> String {
             font-size: 16px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }}
-        
+
         entry:focus {{
             background-color: #282828;
         }}
-        
+
         .app-name {{
             color: #ffffff;
             font-size: 14px;
             font-weight: bold;
             margin-right: 8px;
         }}
-        
+
         .app-description {{
             color: #a0a0a0;
             font-size: 12px;
             margin-right: 8px;
         }}
-        
+
         .app-path {{
             color: #808080;
             font-size: 12px;
