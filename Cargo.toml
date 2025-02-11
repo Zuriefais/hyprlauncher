@@ -13,7 +13,7 @@ keywords = [
     "launcher",
 ]
 categories = ["gui"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 gtk4 = "0.9.5"
