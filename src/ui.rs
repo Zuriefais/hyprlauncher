@@ -7,6 +7,7 @@ use gtk4::glib::{self, clone};
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow, Label, ListBox, ScrolledWindow, SearchEntry};
 use gtk4::{Box as GtkBox, CssProvider, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION};
+use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use std::cell::RefCell;
 use std::process::Command;
 use std::rc::Rc;
@@ -30,6 +31,9 @@ impl LauncherWindow {
             .resizable(false)
             .modal(true)
             .build();
+        window.init_layer_shell();
+        window.set_layer(Layer::Overlay);
+        window.set_keyboard_mode(KeyboardMode::OnDemand);
 
         let main_box = GtkBox::new(Orientation::Vertical, 0);
         let search_entry = SearchEntry::new();

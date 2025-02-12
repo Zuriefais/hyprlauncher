@@ -10,9 +10,6 @@ An unofficial GUI for launching applications, built with GTK4 and Rust. 🚀🦀
 
 ## Installation
 
-### GitHub Releases
-See Hyprlauncher's [releases page](https://github.com/nnyyxxxx/hyprlauncher/releases) for downloadable binaries.
-
 ### Arch Linux
 There are 2 different [AUR](https://aur.archlinux.org) packages available:
 
@@ -39,8 +36,9 @@ paru -S <package>
 4. Compile the app with `cargo build --release` or run it directly with `cargo run --release`
 
 ## Credits:
-- [Nyx](https://github.com/nnyyxxxx) - Implementing the GUI, and maintaining the project
-- [Adam](https://github.com/adamperkowski) - Code improvements, and maintaining the project
+- [Zuriefais](https://github.com/Zuriefais) - My own fork
+- [Nyx](https://github.com/nnyyxxxx) - Implementing the GUI
+- [Adam](https://github.com/adamperkowski) - Code improvements
 - [Vaxry](https://github.com/vaxerski) - Hyprland
 - [rust-gtk](https://github.com/gtk-rs/gtk4-rs) - The GTK4 library
 - [Hyprland](https://github.com/hyprwm/Hyprland) - The window manager

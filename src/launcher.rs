@@ -27,7 +27,7 @@ pub enum EntryType {
     File,
 }
 
-pub static HEATMAP_PATH: &str = "~/.local/share/hyprlauncher/heatmap.json";
+pub static HEATMAP_PATH: &str = "~/.local/share/hyprlauncher/heatmap.toml";
 
 pub fn increment_launch_count(app: &AppEntry) {
     let app_name = app.name.clone();
@@ -52,7 +52,7 @@ fn save_heatmap(name: &str, count: u32) {
     let mut heatmap = load_heatmap();
     heatmap.insert(name.to_string(), count);
 
-    if let Ok(contents) = serde_json::to_string(&heatmap) {
+    if let Ok(contents) = toml::to_string(&heatmap) {
         fs::write(path, contents).unwrap_or_default();
     }
 }
@@ -61,7 +61,7 @@ fn load_heatmap() -> HashMap<String, u32> {
     let path = shellexpand::tilde(HEATMAP_PATH).to_string();
     fs::read_to_string(path)
         .ok()
-        .and_then(|contents| serde_json::from_str(&contents).ok())
+        .and_then(|contents| toml::from_str(&contents).ok())
         .unwrap_or_default()
 }
 
@@ -243,7 +243,13 @@ pub fn create_file_entry(path: String) -> Option<AppEntry> {
             _ => "text-x-generic",
         };
 
-        (icon, format!("xdg-mime query default {} | xargs -I {{}} sh -c 'which {{}} >/dev/null && {{}} \"{}\" || xdg-open \"{}\"'", mime_type, path, path))
+        (
+            icon,
+            format!(
+                "xdg-mime query default {} | xargs -I {{}} sh -c 'which {{}} >/dev/null && {{}} \"{}\" || xdg-open \"{}\"'",
+                mime_type, path, path
+            ),
+        )
     };
 
     Some(AppEntry {

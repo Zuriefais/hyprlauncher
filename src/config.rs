@@ -67,15 +67,8 @@ impl Config {
             return default_config;
         }
 
-        // Read and parse existing config
         let config_str = fs::read_to_string(&config_file).unwrap_or_default();
-        let config: Config = toml::from_str(&config_str).unwrap_or_else(|_| {
-            // If parsing fails, write default config and return it
-            if let Ok(contents) = toml::to_string_pretty(&default_config) {
-                fs::write(&config_file, contents).unwrap_or_default();
-            }
-            default_config
-        });
+        let config: Config = toml::from_str(&config_str).unwrap_or_else(|_| default_config);
 
         config
     }
@@ -151,38 +144,4 @@ fn get_default_css(config: &Config) -> String {
         }}",
         config.theme.selection_color
     )
-}
-
-fn merge_json(
-    existing: serde_json::Value,
-    default: serde_json::Value,
-    schema: &serde_json::Value,
-) -> serde_json::Value {
-    match (existing, default) {
-        (serde_json::Value::Object(mut existing_obj), serde_json::Value::Object(default_obj)) => {
-            let mut result = serde_json::Map::new();
-
-            for (key, schema_val) in schema.as_object().unwrap() {
-                if let Some(existing_val) = existing_obj.remove(key) {
-                    if schema_val.is_object() && existing_val.is_object() {
-                        result.insert(
-                            key.clone(),
-                            merge_json(
-                                existing_val,
-                                default_obj.get(key).cloned().unwrap_or_default(),
-                                schema_val,
-                            ),
-                        );
-                    } else {
-                        result.insert(key.clone(), existing_val);
-                    }
-                } else if let Some(default_val) = default_obj.get(key) {
-                    result.insert(key.clone(), default_val.clone());
-                }
-            }
-
-            serde_json::Value::Object(result)
-        }
-        (_, default) => default,
-    }
 }
