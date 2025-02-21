@@ -1,15 +1,14 @@
 use freedesktop_entry_parser::parse_entry;
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::sync::OnceLock;
 use tokio::sync::RwLock;
 use walkdir::WalkDir;
 
-pub static APP_CACHE: Lazy<RwLock<HashMap<String, AppEntry>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+pub static APP_CACHE: OnceLock<RwLock<HashMap<String, AppEntry>>> = OnceLock::new();
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AppEntry {
@@ -29,17 +28,17 @@ pub enum EntryType {
 
 pub static HEATMAP_PATH: &str = "~/.local/share/hyprlauncher/heatmap.toml";
 
-pub fn increment_launch_count(app: &AppEntry) {
-    let app_name = app.name.clone();
-
-    tokio::spawn(async move {
-        let mut cache = APP_CACHE.write().await;
-        if let Some(entry) = cache.get_mut(&app_name) {
-            entry.launch_count += 1;
-            let count = entry.launch_count;
-            tokio::task::spawn_blocking(move || save_heatmap(&app_name, count));
-        }
-    });
+pub async fn increment_launch_count(app: &AppEntry) {
+    // Initialize the cache if it hasn't been already
+    let cache = APP_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+    let mut cache = cache.write().await;
+    if let Some(entry) = cache.get_mut(&app.name) {
+        entry.launch_count += 1;
+        let count = entry.launch_count;
+        // Clone the name to avoid lifetime issues
+        let app_name = app.name.clone();
+        tokio::task::spawn_blocking(move || save_heatmap(&app_name, count));
+    }
 }
 
 fn save_heatmap(name: &str, count: u32) {
@@ -167,8 +166,7 @@ pub async fn load_applications() {
         apps.insert(name, entry);
     }
 
-    let mut cache = APP_CACHE.write().await;
-    *cache = apps;
+    APP_CACHE.set(RwLock::new(apps));
 }
 
 struct DesktopEntry {

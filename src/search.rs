@@ -1,8 +1,10 @@
-use crate::launcher::{self, AppEntry, APP_CACHE};
-use fuzzy_matcher::skim::SkimMatcherV2;
+use std::collections::HashMap;
+
+use crate::launcher::{self, APP_CACHE, AppEntry};
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use rayon::prelude::*;
-use tokio::sync::oneshot;
+use tokio::sync::{RwLock, oneshot};
 
 pub struct SearchResult {
     pub app: AppEntry,
@@ -14,7 +16,7 @@ pub async fn search_applications(query: &str) -> Vec<SearchResult> {
     let query = query.to_lowercase();
 
     tokio::task::spawn_blocking(move || {
-        let cache = APP_CACHE.blocking_read();
+        let cache = APP_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
         let results = if query.starts_with('~') || query.starts_with('$') || query.starts_with('/')
         {
             let expanded_path =
@@ -82,6 +84,7 @@ pub async fn search_applications(query: &str) -> Vec<SearchResult> {
             }
         } else if query.is_empty() {
             let mut results: Vec<_> = cache
+                .blocking_read()
                 .values()
                 .par_bridge()
                 .filter(|app| app.path.contains("/applications/") && app.path.ends_with(".desktop"))
@@ -111,13 +114,11 @@ pub async fn search_applications(query: &str) -> Vec<SearchResult> {
             results
         } else {
             let matcher = SkimMatcherV2::default().smart_case();
-            let cache_vec: Vec<_> = cache.values().collect();
-
             let mut seen_names = std::collections::HashSet::new();
             let mut seen_execs = std::collections::HashSet::new();
             let mut results: Vec<SearchResult> = Vec::new();
 
-            for app in cache_vec.iter() {
+            for app in cache.blocking_read().values().collect::<Vec<_>>().iter() {
                 if let Some(score) = matcher.fuzzy_match(&app.name.to_lowercase(), &query) {
                     let name_lower = app.name.to_lowercase();
                     let exec_name = app
