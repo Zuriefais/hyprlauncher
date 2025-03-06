@@ -29,15 +29,39 @@ pub enum EntryType {
 pub static HEATMAP_PATH: &str = "~/.local/share/hyprlauncher/heatmap.toml";
 
 pub async fn increment_launch_count(app: &AppEntry) {
+    // Log the start of the operation
+    info!("Starting increment_launch_count for app: {}", app.name);
+
     // Initialize the cache if it hasn't been already
     let cache = APP_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+
+    info!("Acquiring write lock on cache");
     let mut cache = cache.write().await;
+
     if let Some(entry) = cache.get_mut(&app.name) {
+        info!(
+            "Found cache entry for app: {}, current count: {}",
+            app.name, entry.launch_count
+        );
         entry.launch_count += 1;
         let count = entry.launch_count;
+
+        info!(
+            "Incremented launch count for app: {} to {}",
+            app.name, count
+        );
+
         // Clone the name to avoid lifetime issues
         let app_name = app.name.clone();
+
+        info!(
+            "Spawning blocking task to save heatmap for app: {}",
+            app_name
+        );
         tokio::task::spawn_blocking(move || save_heatmap(&app_name, count));
+    } else {
+        // Log when the app isn't found in cache
+        info!("No cache entry found for app: {}", app.name);
     }
 }
 
@@ -46,25 +70,46 @@ pub struct Heatmap {
     map: HashMap<String, u32>,
 }
 
+use log::{debug, error, info};
+
 fn save_heatmap(name: &str, count: u32) {
     let path = shellexpand::tilde(HEATMAP_PATH).to_string();
     let path = std::path::Path::new(&path);
 
+    info!(
+        "Saving heatmap for {} with count {} to path {:?}",
+        name, count, path
+    );
+
     // Ensure directory and file exist
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).unwrap_or_default();
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            error!("Failed to create directory {:?}: {}", dir, e);
+        } else {
+            debug!("Created directory {:?}", dir);
+        }
     }
 
     // Create file if it doesn't exist
     if !path.exists() {
-        std::fs::File::create(&path).unwrap();
+        match std::fs::File::create(&path) {
+            Ok(_) => info!("Created new heatmap file at {:?}", path),
+            Err(e) => error!("Failed to create heatmap file at {:?}: {}", path, e),
+        }
     }
 
     let mut heatmap = load_heatmap();
     heatmap.map.insert(name.to_string(), count);
+    info!("Updated heatmap: {} = {}", name, count);
 
     if let Ok(contents) = toml::to_string(&heatmap) {
-        fs::write(path, contents).unwrap_or_default();
+        if let Err(e) = fs::write(path, &contents) {
+            error!("Failed to write heatmap to {:?}: {}", path, e);
+        } else {
+            info!("Successfully wrote heatmap to {:?}", path);
+        }
+    } else {
+        error!("Failed to serialize heatmap to TOML");
     }
 }
 
@@ -72,30 +117,50 @@ fn load_heatmap() -> Heatmap {
     let path = shellexpand::tilde(HEATMAP_PATH).to_string();
     let path = std::path::Path::new(&path);
 
+    info!("Loading heatmap from {:?}", path);
+
     // Create file if it doesn't exist
     if !path.exists() {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).unwrap_or_default();
+            if let Err(e) = std::fs::create_dir_all(dir) {
+                error!("Failed to create directory {:?}: {}", dir, e);
+            } else {
+                debug!("Created directory {:?}", dir);
+            }
         }
-        std::fs::File::create(&path).unwrap();
+        match std::fs::File::create(&path) {
+            Ok(_) => info!("Created new empty heatmap file at {:?}", path),
+            Err(e) => error!("Failed to create heatmap file at {:?}: {}", path, e),
+        }
         return Heatmap {
             map: HashMap::new(),
         };
     }
 
-    Heatmap {
-        map: fs::read_to_string(path)
-            .ok()
-            .and_then(|contents| toml::from_str(&contents).ok())
-            .unwrap_or_default(),
+    match fs::read_to_string(path) {
+        Ok(contents) => match toml::from_str(&contents) {
+            Ok(map) => {
+                info!("Successfully loaded heatmap from {:?}", path);
+                map
+            }
+            Err(e) => {
+                error!("Failed to parse TOML from {:?}: {}", path, e);
+                Heatmap::default()
+            }
+        },
+        Err(e) => {
+            error!("Failed to read heatmap file {:?}: {}", path, e);
+            Heatmap::default()
+        }
     }
 }
 
 pub async fn load_applications() {
+    info!("loading applications");
     let heatmap = tokio::task::spawn_blocking(load_heatmap)
         .await
         .unwrap_or_default();
-
+    info!("heatmap loaded {:?}", heatmap);
     let mut apps = HashMap::new();
     let desktop_paths = [
         "/usr/share/applications",

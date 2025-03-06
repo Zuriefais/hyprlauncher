@@ -223,7 +223,7 @@ impl LauncherWindow {
             move |_, row| {
                 if let Some(app_data) = get_app_data(row.index() as usize, &app_data_store) {
                     if launch_application(&app_data, &search_entry) {
-                        window.close();
+                        window.hide();
                     }
                 }
             }
@@ -364,9 +364,10 @@ fn launch_application(app: &AppEntry, search_entry: &SearchEntry) -> bool {
                 .replace("%c", &app.name)
                 .trim()
                 .to_string();
-
-            launcher::increment_launch_count(app);
-
+            let app_clone = app.clone();
+            glib::spawn_future_local(async move {
+                launcher::increment_launch_count(&app_clone).await;
+            });
             glib::spawn_future_local(async move {
                 let _ = Command::new("sh").arg("-c").arg(exec).spawn();
             });

@@ -1,2 +1,2 @@
 Run:
-    G_MESSAGES_DEBUG=all cargo run --release
+    RUST_LOG=debug cargo run --release
