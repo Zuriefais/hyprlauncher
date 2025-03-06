@@ -41,27 +41,54 @@ pub async fn increment_launch_count(app: &AppEntry) {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct Heatmap {
+    map: HashMap<String, u32>,
+}
+
 fn save_heatmap(name: &str, count: u32) {
     let path = shellexpand::tilde(HEATMAP_PATH).to_string();
+    let path = std::path::Path::new(&path);
 
-    if let Some(dir) = std::path::Path::new(&path).parent() {
+    // Ensure directory and file exist
+    if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).unwrap_or_default();
     }
 
+    // Create file if it doesn't exist
+    if !path.exists() {
+        std::fs::File::create(&path).unwrap();
+    }
+
     let mut heatmap = load_heatmap();
-    heatmap.insert(name.to_string(), count);
+    heatmap.map.insert(name.to_string(), count);
 
     if let Ok(contents) = toml::to_string(&heatmap) {
         fs::write(path, contents).unwrap_or_default();
     }
 }
 
-fn load_heatmap() -> HashMap<String, u32> {
+fn load_heatmap() -> Heatmap {
     let path = shellexpand::tilde(HEATMAP_PATH).to_string();
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|contents| toml::from_str(&contents).ok())
-        .unwrap_or_default()
+    let path = std::path::Path::new(&path);
+
+    // Create file if it doesn't exist
+    if !path.exists() {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).unwrap_or_default();
+        }
+        std::fs::File::create(&path).unwrap();
+        return Heatmap {
+            map: HashMap::new(),
+        };
+    }
+
+    Heatmap {
+        map: fs::read_to_string(path)
+            .ok()
+            .and_then(|contents| toml::from_str(&contents).ok())
+            .unwrap_or_default(),
+    }
 }
 
 pub async fn load_applications() {
@@ -97,7 +124,7 @@ pub async fn load_applications() {
                                     .unwrap_or("application-x-executable")
                                     .to_string();
                                 let launch_count =
-                                    heatmap.get(app_name).copied().unwrap_or_default();
+                                    heatmap.map.get(app_name).copied().unwrap_or_default();
 
                                 apps.insert(
                                     app_name.to_string(),
@@ -139,7 +166,7 @@ pub async fn load_applications() {
                     entry.file_name().to_str().map(|name| {
                         let name = name.to_string();
                         let path = entry.path().to_string_lossy().to_string();
-                        let launch_count = heatmap.get(&name).copied().unwrap_or_default();
+                        let launch_count = heatmap.map.get(&name).copied().unwrap_or_default();
 
                         let icon_name = find_desktop_entry(&name)
                             .map(|e| e.icon_name)
